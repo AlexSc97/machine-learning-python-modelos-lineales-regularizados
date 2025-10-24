@@ -1,69 +1,81 @@
+# Importo las librerias que se utilizaron en el EDA
 import pandas as pd
-import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
-from sklearn.linear_model import LassoCV
 
-
-def load_and_clean_data(file_path):
+# Funciones para cargar datos, y preparar datos
+def cargar_datos(url):
     """
-    Carga los datos y realiza la limpieza básica (elimina filas con nulos en columnas clave).
+    :param url: Carga datos desde una URL
+    :return: Datos en formato CSV para su lectura con pandas
     """
-    print(f"Cargando datos desde: {file_path}")
-    data = pd.read_csv(file_path)
-
-    # Columnas que usaremos en el modelo (incluye el target)
-    features_for_model = [
+    print("Cargando datos...")
+    df = pd.read_csv(url)
+    return df
+def preparar_datos(df):
+    """
+    Limpia y prepara los datos para dejarlos utilizarlos en el modelo
+    Elimina valores nulos y duplicados
+    Selecciona las columnas más relevantes para el modelo
+    """
+    # Hago una copia del data frame original
+    df_procesado = df.copy()
+    # Elimino valores duplicados si existen
+    if df_procesado.duplicated().sum() > 0:
+        df_procesado.drop_duplicates(inplace=True)
+    # Selecciono solo las columnas más relevantes basadas en el análisis previo
+    data_model = df_procesado[[
         'diabetes_prevalence',
-        'Percent of Population Aged 60+',
         'MEDHHINC_2018',
         'PCTPOVALL_2018',
         'Percent of adults with a bachelor\'s degree or higher 2014-18',
         'Unemployment_rate_2018',
-        'Urban_rural_code',
-        'Active Physicians per 100000 Population 2018 (AAMC)',
-    ]
-
-    # Limpieza: Eliminar filas con NaN en las columnas seleccionadas
-    # (Estrategia conservadora para un modelo final)
-    data_cleaned = data[features_for_model].dropna()
-
-    print(f"Datos limpios: {data_cleaned.shape[0]} filas restantes.")
-    return data_cleaned
-
-
-def create_model_pipeline(X_train):
+        'Active Physicians per 100000 Population 2018 (AAMC)'
+    ]].copy()
+    return data_model
+def dividir_datos(df, variable_objetivo):
     """
-    Define y entrena un Pipeline para el preprocesamiento y el modelo Lasso.
+
+    :param df: Data Frame con columnas mas relevantes y sin nulos
+    :param variable_objetivo: y
+    :return: Regresa la data dividida en train y test separando la variable objetivo (X_train, X_test, y_train, y_test)
+
     """
-    # 1. Definir los pasos del Pipeline
-    # El escalador debe estar dentro del Pipeline para aplicarse correctamente
-    # a las nuevas instancias de predicción.
+    # Divido los datos en características (X) y variable objetivo (y)
+    print(f"Dividir datos entrenamiento y prueba")
+    X = df.drop(variable_objetivo, axis=1)
+    y = df[variable_objetivo]
+    # Divido en conjunto de entrenamiento y prueba (80-20 split)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    return X_train, X_test, y_train, y_test
 
-    # 2. Definir el modelo (LassoCV para encontrar el mejor alpha automáticamente)
-    lasso_cv = LassoCV(
-        alphas=np.logspace(-4, 2, 100),
-        cv=5,
-        random_state=42,
-        max_iter=10000
-    )
+def guardar_graficos_comparacion(y_test, y_pred_lasso, y_pred_ridge):
+    """
+    Genera y guarda los graficos finales de regresión para comparar el rendimiento del modelo antes y despues de optimización
 
-    # 3. Construir el Pipeline: Escalar -> Modelo
-    model_pipeline = Pipeline([
-        ('scaler', StandardScaler()),
-        ('lasso_model', lasso_cv)
-    ])
+    """
+    # Grafico para modelo menos optimo Lasso
+    print(f"Generando graficos...")
+    plt.figure(figsize=(10,7))
+    plt.subplot(1,2,1)
+    sns.scatterplot(x= y_test, y=y_pred_lasso)
+    plt.plot([0,28], [0,28], '--r', linewidth=2)
+    plt.xlabel('Valores reales')
+    plt.ylabel('Predicciones')
+    plt.title("Valores reales vs predicciones del modelo")
+    plt.grid(True)
 
-    return model_pipeline
+    # Grafico para modelo optimizado Ridge
+    plt.subplot(1,2,2)
+    sns.scatterplot(x= y_test, y=y_pred_ridge)
+    plt.plot([0,28], [0,28], '--r', linewidth=2)
+    plt.xlabel('Valores reales')
+    plt.ylabel('Predicciones modelo Ridge')
+    plt.title('Valores reales vs predicciones del modelo Ridge')
+    plt.grid(True)
 
+    # Guardar graficos
+    plt.savefig('../reports/figures/comparacion_modelos.png')
+    print("Gráficos guardados en 'reports/figures/comparacion_modelos.png'")
 
-if __name__ == '__main__':
-    # Ejemplo de uso (esto NO se ejecuta al importar el módulo)
-    # Debes asegurar que el archivo exista en la ruta 'data/raw/'
-    try:
-        df = load_and_clean_data('../data/raw/demographic_health_data.csv')
-        df.to_csv('../data/processed/demographic_health_processed.csv', index=False)
-        print("Dataset procesado guardado en data/processed/")
-    except FileNotFoundError:
-        print("No se puede ejecutar utils.py directamente sin el archivo en la ruta esperada.")
